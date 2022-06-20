@@ -22,7 +22,6 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -33,8 +32,6 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	st "k8s.io/kubernetes/pkg/scheduler/testing"
 	imageutils "k8s.io/kubernetes/test/utils/image"
-
-	"sigs.k8s.io/scheduler-plugins/pkg/apis/scheduling/v1alpha1"
 )
 
 func PrintPods(t *testing.T, cs clientset.Interface, ns string) {
@@ -76,21 +73,6 @@ func MakeNodesAndPods(labels map[string]string, existingPodsNum, allNodesNum int
 		existingPods = append(existingPods, podWrapper.Obj())
 	}
 	return
-}
-
-func MakePG(name, namespace string, min int32, creationTime *time.Time, minResource *corev1.ResourceList) *v1alpha1.PodGroup {
-	var ti int32 = 10
-	pg := &v1alpha1.PodGroup{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec:       v1alpha1.PodGroupSpec{MinMember: min, ScheduleTimeoutSeconds: &ti},
-	}
-	if creationTime != nil {
-		pg.CreationTimestamp = metav1.Time{Time: *creationTime}
-	}
-	if minResource != nil {
-		pg.Spec.MinResources = minResource
-	}
-	return pg
 }
 
 func createKubeConfig(clientCfg *restclient.Config) *clientcmdapi.Config {

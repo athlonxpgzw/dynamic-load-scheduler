@@ -37,12 +37,7 @@ var (
 // addKnownTypes registers known types to the given scheme
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&CoschedulingArgs{},
-		&NodeResourcesAllocatableArgs{},
-		&CapacitySchedulingArgs{},
-		&TargetLoadPackingArgs{},
-		&LoadVariationRiskBalancingArgs{},
-		&NodeResourceTopologyMatchArgs{},
+		&DynamicArgs{},
 	)
 	return nil
 }

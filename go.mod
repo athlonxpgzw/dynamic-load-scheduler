@@ -1,15 +1,13 @@
-module sigs.k8s.io/scheduler-plugins
+module github.com/athlonxpgzw/dynamic-load-scheduler
 
 go 1.15
 
 require (
 	github.com/google/go-cmp v0.5.2
 	github.com/google/uuid v1.1.1
-	github.com/k8stopologyawareschedwg/noderesourcetopology-api v0.0.8
-	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/paypal/load-watcher v0.1.1
+	github.com/prometheus/client_golang v1.9.0 // indirect
 	github.com/spf13/pflag v1.0.5
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.5.1 // indirect
 	k8s.io/api v0.19.9
 	k8s.io/apiextensions-apiserver v0.0.0
 	k8s.io/apimachinery v0.19.9
