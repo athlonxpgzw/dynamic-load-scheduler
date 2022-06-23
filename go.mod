@@ -3,11 +3,16 @@ module github.com/athlonxpgzw/dynamic-load-scheduler
 go 1.15
 
 require (
-	github.com/google/go-cmp v0.5.2
+	github.com/google/go-cmp v0.5.5
 	github.com/google/uuid v1.1.1
-	github.com/prometheus/client_golang v1.9.0 // indirect
+	github.com/prometheus/client_golang v1.12.1
+	github.com/prometheus/common v0.33.0
+	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.5.1 // indirect
+	go.uber.org/zap v1.13.0 // indirect
+	gopkg.in/gcfg.v1 v1.2.3 // indirect
+	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/api v0.19.9
 	k8s.io/apiextensions-apiserver v0.0.0
 	k8s.io/apimachinery v0.19.9
@@ -23,6 +28,7 @@ require (
 )
 
 replace (
+	google.golang.org/grpc => google.golang.org/grpc v1.29.1
 	k8s.io/api => k8s.io/api v0.19.9
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.19.9
 	k8s.io/apimachinery => k8s.io/apimachinery v0.19.9

@@ -1,131 +1,181 @@
-# Copyright 2020 The Kubernetes Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+GOOS ?= $(shell go env GOOS)
 
-ARCHS = amd64 arm64
-COMMONENVVAR=GOOS=$(shell uname -s | tr A-Z a-z)
-BUILDENVVAR=CGO_ENABLED=0
+# Git information
+GIT_VERSION ?= $(shell git describe --tags --always)
+GIT_COMMIT_HASH ?= $(shell git rev-parse HEAD)
+GIT_TREESTATE = "clean"
+GIT_DIFF = $(shell git diff --quiet >/dev/null 2>&1; if [ $$? -eq 1 ]; then echo "1"; fi)
+ifeq ($(GIT_DIFF), 1)
+    GIT_TREESTATE = "dirty"
+endif
+BUILDDATE = $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
-LOCAL_REGISTRY=localhost:5000/scheduler-plugins
-LOCAL_IMAGE=kube-scheduler:latest
-LOCAL_CONTROLLER_IMAGE=controller:latest
+LDFLAGS = "-X github.com/athlonxpgzw/dynamic-load-scheduler/pkg/version.gitVersion=$(GIT_VERSION) \
+                      -X github.com/athlonxpgzw/dynamic-load-scheduler/pkg/version.gitCommit=$(GIT_COMMIT_HASH) \
+                      -X github.com/athlonxpgzw/dynamic-load-scheduler/pkg/version.gitTreeState=$(GIT_TREESTATE) \
+                      -X github.com/athlonxpgzw/dynamic-load-scheduler/pkg/version.buildDate=$(BUILDDATE)"
 
-# RELEASE_REGISTRY is the container registry to push
-# into. The default is to push to the staging
-# registry, not production(k8s.gcr.io).
-RELEASE_REGISTRY?=gcr.io/k8s-staging-scheduler-plugins
-RELEASE_VERSION?=v$(shell date +%Y%m%d)-$(shell git describe --tags --match "v*")
-RELEASE_IMAGE:=kube-scheduler:$(RELEASE_VERSION)
-RELEASE_CONTROLLER_IMAGE:=controller:$(RELEASE_VERSION)
+# Images management
+REGISTRY ?= docker.io
+REGISTRY_NAMESPACE ?= athlonxpgzw
+REGISTRY_USER_NAME?=""
+REGISTRY_PASSWORD?=""
 
-# VERSION is the scheduler's version
-#
-# The RELEASE_VERSION variable can have one of two formats:
-# v20201009-v0.18.800-46-g939c1c0 - automated build for a commit(not a tag) and also a local build
-# v20200521-v0.18.800             - automated build for a tag
-VERSION=$(shell echo $(RELEASE_VERSION) | awk -F - '{print $$2}')
+# Image URL to use all building/pushing image targets
+SCHEDULER_IMG ?= "${REGISTRY}/${REGISTRY_NAMESPACE}/dynamic-load-scheduler:${GIT_VERSION}"
+CONTROLLER_IMG ?= "${REGISTRY}/${REGISTRY_NAMESPACE}/dynamic-load-scheduler-controller:${GIT_VERSION}"
 
-.PHONY: all
-all: build
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
+
+# Setting SHELL to bash allows bash commands to be executed by recipes.
+# This is a requirement for 'setup-envtest.sh' in the test target.
+# Options are set to exit when a recipe line exits non-zero or a piped command fails.
+SHELL = /usr/bin/env bash -o pipefail
+.SHELLFLAGS = -ec
+
+##@ General
+
+# The help target prints out all targets with their descriptions organized
+# beneath their categories. The categories are represented by '##@' and the
+# target descriptions by '##'. The awk commands is responsible for reading the
+# entire set of makefiles included in this invocation, looking for lines of the
+# file as xyz: ## something, and then pretty-format the target and help. Then,
+# if there's a line with ##@ something, that gets pretty-printed as a category.
+# More info on the usage of ANSI control characters for terminal formatting:
+# https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
+# More info on the awk command:
+# http://linuxcommand.org/lc3_adv_awk.php
+
+.PHONY: help
+help: ## Display this help.
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+##@ Development
+
+.PHONY: fmt
+fmt: ## Run go fmt against code.
+	go fmt ./...
+
+.PHONY: vet
+vet: ## Run go vet against code.
+	@find . -type f -name '*.go'| grep -v "/vendor/" | xargs gofmt -w -s
+
+# Run mod tidy against code
+.PHONY: tidy
+tidy:
+	@go mod tidy
+
+.PHONY: lint
+lint: golangci-lint  ## Run golang lint against code
+	@$(GOLANG_LINT) run \
+      --timeout 30m \
+      --disable-all \
+      -E deadcode \
+      -E unused \
+      -E varcheck \
+      -E ineffassign \
+      -E goimports \
+      -E gofmt \
+      -E misspell \
+      -E unparam \
+      -E unconvert \
+      -E govet \
+      -E errcheck \
+      -E structcheck
+
+.PHONY: test
+test: fmt vet lint ## Run tests.
+	go test -coverprofile coverage.out -covermode=atomic ./...
 
 .PHONY: build
-build: build-controller build-scheduler
+build: scheduler controller
 
-.PHONY: build.amd64
-build.amd64: build-controller.amd64 build-scheduler.amd64
+.PHONY: all
+all: test scheduler controller
 
-.PHONY: build.arm64v8
-build.arm64v8: build-controller.arm64v8 build-scheduler.arm64v8
+.PHONY: scheduler
+scheduler: ## Build binary with the crane scheduler.
+	CGO_ENABLED=0 GOOS=$(GOOS) go build -ldflags $(LDFLAGS) -o bin/scheduler cmd/scheduler/main.go
 
-.PHONY: build-controller
-build-controller: autogen
-	$(COMMONENVVAR) $(BUILDENVVAR) go build -ldflags '-w' -o bin/controller cmd/controller/controller.go
+.PHONY: controller
+controller: ## Build binary with the controller.
+	CGO_ENABLED=0 GOOS=$(GOOS) go build -ldflags $(LDFLAGS) -o bin/controller cmd/controller/main.go
 
-.PHONY: build-controller.amd64
-build-controller.amd64: autogen
-	$(COMMONENVVAR) $(BUILDENVVAR) GOARCH=amd64 go build -ldflags '-w' -o bin/controller cmd/controller/controller.go
+.PHONY: images
+images: image-scheduler image-controller
 
-.PHONY: build-controller.arm64v8
-build-controller.arm64v8: autogen
-	GOOS=linux $(BUILDENVVAR) GOARCH=arm64 go build -ldflags '-w' -o bin/controller cmd/controller/controller.go
+.PHONY: image-scheduler
+image-scheduler: ## Build docker image with the crane scheduler.
+	docker build --build-arg LDFLAGS=$(LDFLAGS) --build-arg PKGNAME=scheduler -t ${SCHEDULER_IMG} .
 
-.PHONY: build-scheduler
-build-scheduler: autogen
-	$(COMMONENVVAR) $(BUILDENVVAR) go build -ldflags '-X k8s.io/component-base/version.gitVersion=$(VERSION) -w' -o bin/kube-scheduler cmd/scheduler/main.go
+.PHONY: image-controller
+image-controller: ## Build docker image with the controller.
+	docker build --build-arg LDFLAGS=$(LDFLAGS) --build-arg PKGNAME=controller -t ${CONTROLLER_IMG} .
 
-.PHONY: build-scheduler.amd64
-build-scheduler.amd64: autogen
-	$(COMMONENVVAR) $(BUILDENVVAR) GOARCH=amd64 go build -ldflags '-X k8s.io/component-base/version.gitVersion=$(VERSION) -w' -o bin/kube-scheduler cmd/scheduler/main.go
+.PHONY: push-images
+push-images: push-image-scheduler push-image-controller
 
-.PHONY: build-scheduler.arm64v8
-build-scheduler.arm64v8: autogen
-	GOOS=linux $(BUILDENVVAR) GOARCH=arm64 go build -ldflags '-X k8s.io/component-base/version.gitVersion=$(VERSION) -w' -o bin/kube-scheduler cmd/scheduler/main.go
+.PHONY: push-image-scheduler
+push-image-scheduler: ## Push images.
+ifneq ($(REGISTRY_USER_NAME), "")
+	docker login -u $(REGISTRY_USER_NAME) -p $(REGISTRY_PASSWORD) ${REGISTRY}
+endif
+	docker push ${SCHEDULER_IMG}
 
-.PHONY: local-image
-local-image: clean
-	docker build -f ./build/scheduler/Dockerfile --build-arg ARCH="amd64" --build-arg RELEASE_VERSION="$(RELEASE_VERSION)" -t $(LOCAL_REGISTRY)/$(LOCAL_IMAGE) .
-	docker build -f ./build/controller/Dockerfile --build-arg ARCH="amd64" -t $(LOCAL_REGISTRY)/$(LOCAL_CONTROLLER_IMAGE) .
+.PHONY: push-image-controller
+push-image-controller: ## Push images.
+ifneq ($(REGISTRY_USER_NAME), "")
+	docker login -u $(REGISTRY_USER_NAME) -p $(REGISTRY_PASSWORD) ${REGISTRY}
+endif
+	docker push ${CONTROLLER_IMG}
 
-.PHONY: release-image.amd64
-release-image.amd64: clean
-	docker build -f ./build/scheduler/Dockerfile --build-arg ARCH="amd64" --build-arg RELEASE_VERSION="$(RELEASE_VERSION)" -t $(RELEASE_REGISTRY)/$(RELEASE_IMAGE)-amd64 .
-	docker build -f ./build/controller/Dockerfile --build-arg ARCH="amd64" -t $(RELEASE_REGISTRY)/$(RELEASE_CONTROLLER_IMAGE)-amd64 .
+# go-get-tool will 'go get' any package $2 and install it to $1.
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+define go-get-tool
+@[ -f $(1) ] || { \
+set -e ;\
+TMP_DIR=$$(mktemp -d) ;\
+cd $$TMP_DIR ;\
+go mod init tmp ;\
+echo "Downloading $(2)" ;\
+GOBIN=$(PROJECT_DIR)/bin go get $(2) ;\
+rm -rf $$TMP_DIR ;\
+}
+endef
 
-.PHONY: release-image.arm64v8
-release-image.arm64v8: clean
-	docker build -f ./build/scheduler/Dockerfile --build-arg ARCH="arm64v8" --build-arg RELEASE_VERSION="$(RELEASE_VERSION)" -t $(RELEASE_REGISTRY)/$(RELEASE_IMAGE)-arm64 .
-	docker build -f ./build/controller/Dockerfile --build-arg ARCH="arm64v8" -t $(RELEASE_REGISTRY)/$(RELEASE_CONTROLLER_IMAGE)-arm64 .
+golangci-lint:
+ifeq (, $(shell which golangci-lint))
+	@{ \
+	set -e ;\
+	export GO111MODULE=on; \
+	GOLANG_LINT_TMP_DIR=$$(mktemp -d) ;\
+	cd $$GOLANG_LINT_TMP_DIR ;\
+	go mod init tmp ;\
+	go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0 ;\
+	rm -rf $$GOLANG_LINT_TMP_DIR ;\
+	}
+GOLANG_LINT=$(shell go env GOPATH)/bin/golangci-lint
+else
+GOLANG_LINT=$(shell which golangci-lint)
+endif
 
-.PHONY: push-release-images
-push-release-images: release-image.amd64 release-image.arm64v8
-	gcloud auth configure-docker
-	for arch in $(ARCHS); do \
-		docker push $(RELEASE_REGISTRY)/$(RELEASE_IMAGE)-$${arch} ;\
-		docker push $(RELEASE_REGISTRY)/$(RELEASE_CONTROLLER_IMAGE)-$${arch} ;\
-	done
-	DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create $(RELEASE_REGISTRY)/$(RELEASE_IMAGE) $(addprefix --amend $(RELEASE_REGISTRY)/$(RELEASE_IMAGE)-, $(ARCHS))
-	DOCKER_CLI_EXPERIMENTAL=enabled docker manifest create $(RELEASE_REGISTRY)/$(RELEASE_CONTROLLER_IMAGE) $(addprefix --amend $(RELEASE_REGISTRY)/$(RELEASE_CONTROLLER_IMAGE)-, $(ARCHS))
-	for arch in $(ARCHS); do \
-		DOCKER_CLI_EXPERIMENTAL=enabled docker manifest annotate --arch $${arch} $(RELEASE_REGISTRY)/$(RELEASE_IMAGE) $(RELEASE_REGISTRY)/$(RELEASE_IMAGE)-$${arch} ;\
-		DOCKER_CLI_EXPERIMENTAL=enabled docker manifest annotate --arch $${arch} $(RELEASE_REGISTRY)/$(RELEASE_CONTROLLER_IMAGE) $(RELEASE_REGISTRY)/$(RELEASE_CONTROLLER_IMAGE)-$${arch} ;\
-	done
-	DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push $(RELEASE_REGISTRY)/$(RELEASE_IMAGE) ;\
-	DOCKER_CLI_EXPERIMENTAL=enabled docker manifest push $(RELEASE_REGISTRY)/$(RELEASE_CONTROLLER_IMAGE) ;\
-
-.PHONY: update-vendor
-update-vendor:
-	hack/update-vendor.sh
-
-.PHONY: unit-test
-unit-test: autogen
-	hack/unit-test.sh
-
-.PHONY: install-etcd
-install-etcd:
-	hack/install-etcd.sh
-
-.PHONY: autogen
-autogen: update-vendor
-	hack/update-generated-openapi.sh
-
-.PHONY: integration-test
-integration-test: install-etcd autogen
-	hack/integration-test.sh
-
-.PHONY: verify-gofmt
-verify-gofmt:
-	hack/verify-gofmt.sh
-
-.PHONY: clean
-clean:
-	rm -rf ./bin
+goimports:
+ifeq (, $(shell which goimports))
+	@{ \
+	set -e ;\
+	export GO111MODULE=on; \
+	GO_IMPORTS_TMP_DIR=$$(mktemp -d) ;\
+	cd $$GO_IMPORTS_TMP_DIR ;\
+	go mod init tmp ;\
+	go get golang.org/x/tools/cmd/goimports@v0.1.7 ;\
+	rm -rf $$GO_IMPORTS_TMP_DIR ;\
+	}
+GO_IMPORTS=$(shell go env GOPATH)/bin/goimports
+else
+GO_IMPORTS=$(shell which goimports)
+endif
