@@ -12,10 +12,7 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
-#### RUN unset https_proxy HTTPS_PROXY HTTP_PROXY http_proxy && go mod download
-ARG https_proxy=socks5://192.168.144.167:1080
-ARG http_proxy=socks5://192.168.144.167:1080
-RUN go mod download
+RUN unset https_proxy HTTPS_PROXY HTTP_PROXY http_proxy && go mod download
 
 # Copy the go source
 COPY pkg pkg/
