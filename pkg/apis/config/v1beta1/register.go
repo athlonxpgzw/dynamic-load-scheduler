@@ -1,4 +1,4 @@
-package v1beta2
+package v1beta1
 
 import (
 	"k8s.io/apimachinery/pkg/runtime"
@@ -8,7 +8,7 @@ import (
 )
 
 // SchemeGroupVersion is group version used to register these objects
-var SchemeGroupVersion = schema.GroupVersion{Group: kubeschedulerconfig.GroupName, Version: "v1beta2"}
+var SchemeGroupVersion = schema.GroupVersion{Group: kubeschedulerconfig.GroupName, Version: "v1beta1"}
 
 var (
 	// localSchemeBuilder and AddToScheme will stay in k8s.io/kubernetes.
