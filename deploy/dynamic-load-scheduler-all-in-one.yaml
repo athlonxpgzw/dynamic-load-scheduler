@@ -21,7 +21,7 @@ metadata:
   namespace: dynamic-load
 data:
   policy.yaml: |
-    apiVersion: scheduler.policy.crane.io/v1alpha1
+    apiVersion: scheduler.policy.dynamicload.io/v1alpha1
     kind: DynamicSchedulerPolicy
     spec:
       syncPolicy:

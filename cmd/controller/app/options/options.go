@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	ControllerUserAgent = "crane-scheduler-controller"
+	ControllerUserAgent = "dynamic-load-scheduler-controller"
 )
 
 // Options has all the params needed to run a Annotator.
@@ -46,8 +46,8 @@ func NewOptions() (*Options, error) {
 			RenewDeadline:     metav1.Duration{Duration: 10 * time.Second},
 			RetryPeriod:       metav1.Duration{Duration: 2 * time.Second},
 			ResourceLock:      "leases",
-			ResourceName:      "crane-scheduler-controller",
-			ResourceNamespace: "crane-system",
+			ResourceName:      "dynamic-load-scheduler-controller",
+			ResourceNamespace: "kube-system",
 		},
 	}
 

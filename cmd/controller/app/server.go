@@ -27,7 +27,7 @@ func NewControllerCommand() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use: "controller",
-		Long: `The Crane Scheduler Controller is a kubernetes controller, which is used for annotating
+		Long: `The Dynamic Load Scheduler Controller is a kubernetes controller, which is used for annotating
 		nodes with real load imformation sourced from Prometheus defaultly. `,
 		Run: func(cmd *cobra.Command, args []string) {
 
@@ -111,7 +111,7 @@ func Run(cc *config.CompletedConfig, stopCh <-chan struct{}) error {
 			},
 		},
 		WatchDog: electionChecker,
-		Name:     "crane-scheduler-controller",
+		Name:     "dynamic-load-scheduler-controller",
 	})
 
 	panic("unreachable")
