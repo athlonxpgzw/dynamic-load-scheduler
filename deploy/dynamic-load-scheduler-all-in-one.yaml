@@ -346,7 +346,7 @@ spec:
             - /controller
             - --policy-config-path=/data/policy.yaml
             - --prometheus-address=http://10.233.6.108:9090
-          image:  "repos.cloud.cmft/dynamic-load/dynamic-load-scheduler-controller:v0.19.9-8-g8ceda2c"
+          image:  "repos.cloud.cmft/dynamic-load/dynamic-load-scheduler-controller:v0.19.9-12-g2b10fc3"
           volumeMounts:
             - mountPath: /data
               name: dynamic-scheduler-policy
@@ -386,7 +386,7 @@ spec:
         - /scheduler
         - --leader-elect=false
         - --config=/etc/kubernetes/kube-scheduler/scheduler-config.yaml
-        image: "repos.cloud.cmft/dynamic-load/dynamic-load-scheduler-controller:v0.19.9-8-g8ceda2c"
+        image: "repos.cloud.cmft/dynamic-load/dynamic-load-scheduler-controller:v0.19.9-12-g2b10fc3"
         livenessProbe:
           httpGet:
             path: /healthz
