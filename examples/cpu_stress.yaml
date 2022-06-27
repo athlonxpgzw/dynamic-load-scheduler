@@ -12,7 +12,7 @@ spec:
       labels:
         app: cpu-stress
     spec:
-      schedulerName: crane-scheduler
+      schedulerName: dynamic-load-scheduler
       hostNetwork: true
       tolerations:
       - key: node.kubernetes.io/network-unavailable
@@ -20,7 +20,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: stress
-        image: docker.io/gocrane/stress:latest
+        image: repos.cloud.cmft/crane/stress:latest
         command: ["stress", "-c", "1"]
         resources:
           requests:
